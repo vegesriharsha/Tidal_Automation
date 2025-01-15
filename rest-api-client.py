@@ -8,12 +8,13 @@ from datetime import datetime
 import os
 from typing import Dict, List, Optional
 import json
+from xml.dom import minidom
 
 class RestApiClient:
     def __init__(self):
         self.window = tk.Tk()
         self.window.title("REST API Client")
-        self.window.geometry("1000x800")  # Increased window size
+        self.window.geometry("1200x800")  # Increased width further
         self.create_ui()
         
     def create_ui(self):
@@ -64,7 +65,7 @@ class RestApiClient:
         self.progress = ttk.Progressbar(input_frame, variable=self.progress_var, maximum=100)
         self.progress.pack(fill=tk.X, padx=5, pady=5)
         
-        # Create notebook for logs and responses
+        # Create notebook for logs, requests, and responses
         notebook = ttk.Notebook(self.window)
         notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
@@ -73,6 +74,12 @@ class RestApiClient:
         notebook.add(log_frame, text='Process Log')
         self.log_area = scrolledtext.ScrolledText(log_frame, height=20)
         self.log_area.pack(fill=tk.BOTH, expand=True)
+        
+        # Request tab
+        request_frame = ttk.Frame(notebook)
+        notebook.add(request_frame, text='API Requests')
+        self.request_area = scrolledtext.ScrolledText(request_frame, height=20)
+        self.request_area.pack(fill=tk.BOTH, expand=True)
         
         # Response tab
         response_frame = ttk.Frame(notebook)
@@ -96,17 +103,45 @@ class RestApiClient:
             self.file_label.config(text=os.path.basename(filename))
             self.selected_file = filename
             
-    def log_message(self, message: str, response: bool = False):
+    def log_message(self, message: str, area_type: str = 'log'):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_entry = f"[{timestamp}] {message}\n"
         
-        if response:
+        if area_type == 'request':
+            self.request_area.insert(tk.END, log_entry)
+            self.request_area.see(tk.END)
+        elif area_type == 'response':
             self.response_area.insert(tk.END, log_entry)
             self.response_area.see(tk.END)
         else:
             self.log_area.insert(tk.END, log_entry)
             self.log_area.see(tk.END)
+
+    def format_xml(self, xml_string: str) -> str:
+        """Format XML string with proper indentation"""
+        try:
+            dom = minidom.parseString(xml_string)
+            formatted_xml = dom.toprettyxml(indent="  ")
+            # Remove empty lines
+            formatted_xml = '\n'.join([line for line in formatted_xml.split('\n') if line.strip()])
+            return formatted_xml
+        except:
+            return xml_string
+            
+    def format_request(self, row_num: int, url: str, headers: dict, payload: str) -> str:
+        formatted_headers = json.dumps(headers, indent=2)
+        formatted_payload = self.format_xml(payload)
         
+        return f"""
+=== Request for Row {row_num} ===
+URL: {url}
+Headers:
+{formatted_headers}
+Payload:
+{formatted_payload}
+===============================
+"""
+            
     def format_response(self, response, row_num: int) -> str:
         try:
             # Try to parse response as JSON
@@ -189,6 +224,11 @@ Content:
         
         errors = []
         
+        # Clear previous content
+        self.request_area.delete(1.0, tk.END)
+        self.response_area.delete(1.0, tk.END)
+        self.log_area.delete(1.0, tk.END)
+        
         try:
             with open(self.selected_file, 'r') as file:
                 csv_reader = csv.DictReader(file)
@@ -218,13 +258,16 @@ Content:
                         errors.append(error_msg)
                         continue
                     
+                    # Log request details
+                    self.log_message(self.format_request(index, url, headers, payload), 'request')
+                    
                     try:
                         # Make API request with SSL verification configuration
                         response = requests.post(url, headers=headers, data=payload, verify=verify)
                         
                         # Log the response
                         self.log_message(f"Row {index}: Status Code {response.status_code}")
-                        self.log_message(self.format_response(response, index), response=True)
+                        self.log_message(self.format_response(response, index), 'response')
                         
                         # Check for successful response
                         response.raise_for_status()
