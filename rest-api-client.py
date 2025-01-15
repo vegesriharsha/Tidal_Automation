@@ -7,61 +7,78 @@ import time
 from datetime import datetime
 import os
 from typing import Dict, List, Optional
+import json
 
 class RestApiClient:
     def __init__(self):
         self.window = tk.Tk()
         self.window.title("REST API Client")
-        self.window.geometry("800x600")
+        self.window.geometry("1000x800")  # Increased window size
         self.create_ui()
         
     def create_ui(self):
+        # Create main container for input fields
+        input_frame = ttk.Frame(self.window)
+        input_frame.pack(fill=tk.X, padx=5, pady=5)
+        
         # URL input
-        url_frame = ttk.Frame(self.window, padding="5")
-        url_frame.pack(fill=tk.X, padx=5, pady=5)
+        url_frame = ttk.Frame(input_frame, padding="5")
+        url_frame.pack(fill=tk.X)
         ttk.Label(url_frame, text="API URL:").pack(side=tk.LEFT)
         self.url_entry = ttk.Entry(url_frame, width=50)
         self.url_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         
         # Token input
-        token_frame = ttk.Frame(self.window, padding="5")
-        token_frame.pack(fill=tk.X, padx=5, pady=5)
+        token_frame = ttk.Frame(input_frame, padding="5")
+        token_frame.pack(fill=tk.X)
         ttk.Label(token_frame, text="Bearer Token:").pack(side=tk.LEFT)
         self.token_entry = ttk.Entry(token_frame, width=50)
         self.token_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         
         # SSL Verification checkbox
-        ssl_frame = ttk.Frame(self.window, padding="5")
-        ssl_frame.pack(fill=tk.X, padx=5, pady=5)
+        ssl_frame = ttk.Frame(input_frame, padding="5")
+        ssl_frame.pack(fill=tk.X)
         self.verify_ssl = tk.BooleanVar(value=False)
         ttk.Checkbutton(ssl_frame, text="Verify SSL Certificate", variable=self.verify_ssl).pack(side=tk.LEFT)
         
         # Certificate path input
-        cert_frame = ttk.Frame(self.window, padding="5")
-        cert_frame.pack(fill=tk.X, padx=5, pady=5)
+        cert_frame = ttk.Frame(input_frame, padding="5")
+        cert_frame.pack(fill=tk.X)
         ttk.Label(cert_frame, text="Certificate Path (optional):").pack(side=tk.LEFT)
         self.cert_entry = ttk.Entry(cert_frame, width=40)
         self.cert_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         ttk.Button(cert_frame, text="Browse", command=self.browse_cert).pack(side=tk.LEFT)
         
         # File selection
-        file_frame = ttk.Frame(self.window, padding="5")
-        file_frame.pack(fill=tk.X, padx=5, pady=5)
+        file_frame = ttk.Frame(input_frame, padding="5")
+        file_frame.pack(fill=tk.X)
         self.file_label = ttk.Label(file_frame, text="No file selected")
         self.file_label.pack(side=tk.LEFT, padx=5)
         ttk.Button(file_frame, text="Browse", command=self.browse_file).pack(side=tk.LEFT)
         
         # Process button
-        ttk.Button(self.window, text="Process CSV", command=self.process_csv).pack(pady=10)
+        ttk.Button(input_frame, text="Process CSV", command=self.process_csv).pack(pady=10)
         
         # Progress bar
         self.progress_var = tk.DoubleVar()
-        self.progress = ttk.Progressbar(self.window, variable=self.progress_var, maximum=100)
+        self.progress = ttk.Progressbar(input_frame, variable=self.progress_var, maximum=100)
         self.progress.pack(fill=tk.X, padx=5, pady=5)
         
-        # Log area
-        self.log_area = scrolledtext.ScrolledText(self.window, height=20)
-        self.log_area.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Create notebook for logs and responses
+        notebook = ttk.Notebook(self.window)
+        notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Log tab
+        log_frame = ttk.Frame(notebook)
+        notebook.add(log_frame, text='Process Log')
+        self.log_area = scrolledtext.ScrolledText(log_frame, height=20)
+        self.log_area.pack(fill=tk.BOTH, expand=True)
+        
+        # Response tab
+        response_frame = ttk.Frame(notebook)
+        notebook.add(response_frame, text='API Responses')
+        self.response_area = scrolledtext.ScrolledText(response_frame, height=20)
+        self.response_area.pack(fill=tk.BOTH, expand=True)
         
     def browse_cert(self):
         filename = filedialog.askopenfilename(
@@ -79,11 +96,35 @@ class RestApiClient:
             self.file_label.config(text=os.path.basename(filename))
             self.selected_file = filename
             
-    def log_message(self, message: str):
+    def log_message(self, message: str, response: bool = False):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.log_area.insert(tk.END, f"[{timestamp}] {message}\n")
-        self.log_area.see(tk.END)
+        log_entry = f"[{timestamp}] {message}\n"
         
+        if response:
+            self.response_area.insert(tk.END, log_entry)
+            self.response_area.see(tk.END)
+        else:
+            self.log_area.insert(tk.END, log_entry)
+            self.log_area.see(tk.END)
+        
+    def format_response(self, response, row_num: int) -> str:
+        try:
+            # Try to parse response as JSON
+            content = response.json()
+            formatted_content = json.dumps(content, indent=2)
+        except json.JSONDecodeError:
+            # If not JSON, use text content
+            formatted_content = response.text
+            
+        return f"""
+=== Response for Row {row_num} ===
+Status Code: {response.status_code}
+Headers: {dict(response.headers)}
+Content:
+{formatted_content}
+===============================
+"""
+            
     def create_xml_payload(self, row: Dict[str, str]) -> Optional[str]:
         if not row.get('id'):
             return None
@@ -180,6 +221,12 @@ class RestApiClient:
                     try:
                         # Make API request with SSL verification configuration
                         response = requests.post(url, headers=headers, data=payload, verify=verify)
+                        
+                        # Log the response
+                        self.log_message(f"Row {index}: Status Code {response.status_code}")
+                        self.log_message(self.format_response(response, index), response=True)
+                        
+                        # Check for successful response
                         response.raise_for_status()
                         self.log_message(f"Row {index}: Successfully processed")
                         
