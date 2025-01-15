@@ -30,6 +30,20 @@ class RestApiClient:
         self.token_entry = ttk.Entry(token_frame, width=50)
         self.token_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         
+        # SSL Verification checkbox
+        ssl_frame = ttk.Frame(self.window, padding="5")
+        ssl_frame.pack(fill=tk.X, padx=5, pady=5)
+        self.verify_ssl = tk.BooleanVar(value=False)
+        ttk.Checkbutton(ssl_frame, text="Verify SSL Certificate", variable=self.verify_ssl).pack(side=tk.LEFT)
+        
+        # Certificate path input
+        cert_frame = ttk.Frame(self.window, padding="5")
+        cert_frame.pack(fill=tk.X, padx=5, pady=5)
+        ttk.Label(cert_frame, text="Certificate Path (optional):").pack(side=tk.LEFT)
+        self.cert_entry = ttk.Entry(cert_frame, width=40)
+        self.cert_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        ttk.Button(cert_frame, text="Browse", command=self.browse_cert).pack(side=tk.LEFT)
+        
         # File selection
         file_frame = ttk.Frame(self.window, padding="5")
         file_frame.pack(fill=tk.X, padx=5, pady=5)
@@ -49,6 +63,14 @@ class RestApiClient:
         self.log_area = scrolledtext.ScrolledText(self.window, height=20)
         self.log_area.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
+    def browse_cert(self):
+        filename = filedialog.askopenfilename(
+            filetypes=[("Certificate Files", "*.pem;*.crt;*.cer"), ("All Files", "*.*")]
+        )
+        if filename:
+            self.cert_entry.delete(0, tk.END)
+            self.cert_entry.insert(0, filename)
+            
     def browse_file(self):
         filename = filedialog.askopenfilename(
             filetypes=[("CSV Files", "*.csv"), ("All Files", "*.*")]
@@ -105,6 +127,7 @@ class RestApiClient:
             
         url = self.url_entry.get().strip()
         token = self.token_entry.get().strip()
+        cert_path = self.cert_entry.get().strip()
         
         if not url or not token:
             self.log_message("Error: URL and Bearer Token are required")
@@ -114,6 +137,14 @@ class RestApiClient:
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/xml'
         }
+        
+        # Configure SSL verification
+        if self.verify_ssl.get():
+            verify = cert_path if cert_path else True
+        else:
+            verify = False
+            # Disable SSL warnings if verification is disabled
+            requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
         
         errors = []
         
@@ -147,8 +178,8 @@ class RestApiClient:
                         continue
                     
                     try:
-                        # Make API request
-                        response = requests.post(url, headers=headers, data=payload)
+                        # Make API request with SSL verification configuration
+                        response = requests.post(url, headers=headers, data=payload, verify=verify)
                         response.raise_for_status()
                         self.log_message(f"Row {index}: Successfully processed")
                         
