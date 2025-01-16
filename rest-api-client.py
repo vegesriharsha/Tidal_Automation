@@ -116,17 +116,6 @@ class RestApiClient:
         else:
             self.log_area.insert(tk.END, log_entry)
             self.log_area.see(tk.END)
-
-    def format_xml(self, xml_string: str) -> str:
-        """Format XML string with proper indentation"""
-        try:
-            dom = minidom.parseString(xml_string)
-            formatted_xml = dom.toprettyxml(indent="  ")
-            # Remove empty lines
-            formatted_xml = '\n'.join([line for line in formatted_xml.split('\n') if line.strip()])
-            return formatted_xml
-        except:
-            return xml_string
             
     def format_request(self, row_num: int, url: str, headers: dict, payload: str) -> str:
         formatted_headers = json.dumps(headers, indent=2)
@@ -192,9 +181,53 @@ Content:
             
         if row.get('parameters'):
             parameters_elem = ET.SubElement(job, "{http://www.tidalsoftware.com/client/tesservlet}parameters")
-            parameters_elem.text = row['parameters']
+            # Handle the parameters value directly without using ElementTree's text handling
+            parameters_value = row['parameters']
+            # Ensure any carriage returns are preserved
+            parameters_value = parameters_value.replace('\r\n', '\n').replace('\r', '\n')
+            
+            # Convert the Element to string
+            xml_str = ET.tostring(root, encoding='unicode', xml_declaration=True)
+            
+            # Insert CDATA section with preserved formatting
+            cdata_section = f"<![CDATA[{parameters_value}]]>"
+            
+            # Replace the empty parameters tag with one containing the CDATA section
+            xml_str = xml_str.replace(
+                '<tes:parameters></tes:parameters>',
+                f'<tes:parameters>{cdata_section}</tes:parameters>'
+            )
+            
+            return xml_str
             
         return ET.tostring(root, encoding='unicode', xml_declaration=True)
+		
+	def format_xml(self, xml_string: str) -> str:
+        """Format XML string with proper indentation while preserving CDATA content"""
+        # Extract CDATA content before formatting
+        import re
+        cdata_pattern = r'<!\[CDATA\[(.*?)\]\]>'
+        cdata_matches = re.findall(cdata_pattern, xml_string, re.DOTALL)
+        
+        # Replace CDATA content with placeholder
+        placeholder = "CDATA_PLACEHOLDER_XYZ"
+        xml_with_placeholder = re.sub(cdata_pattern, placeholder, xml_string)
+        
+        try:
+            dom = minidom.parseString(xml_with_placeholder)
+            formatted_xml = dom.toprettyxml(indent="  ")
+            # Remove empty lines
+            formatted_xml = '\n'.join([line for line in formatted_xml.split('\n') if line.strip()])
+            
+            # Restore CDATA content
+            for cdata_content in cdata_matches:
+                formatted_xml = formatted_xml.replace(
+                    placeholder,
+                    f'<![CDATA[{cdata_content}]]>'
+                )
+            return formatted_xml
+        except:
+            return xml_string	
         
     def process_csv(self):
         if not hasattr(self, 'selected_file'):
