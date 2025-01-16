@@ -1,3 +1,20 @@
+# rest_api_client.py
+
+"""
+REST API Client Application
+--------------------------
+This application processes CSV files and makes REST API calls with XML payloads.
+It includes features like SSL handling, CDATA processing, and request/response logging.
+
+Author: [Your Name]
+Version: 1.0
+Date: 2025-01-15
+
+Usage:
+    1. Install required packages: pip install requests
+    2. Run the script: python rest_api_client.py
+"""
+
 import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext
 import csv
@@ -11,16 +28,34 @@ import json
 from xml.dom import minidom
 
 class RestApiClient:
+    """
+    Main application class for the REST API client.
+    Handles GUI creation, CSV processing, and API communication.
+    """
+    
     def __init__(self):
+        """Initialize the application window and UI components."""
         self.window = tk.Tk()
         self.window.title("REST API Client")
-        self.window.geometry("1200x800")  # Increased width further
+        self.window.geometry("1200x800")
         self.create_ui()
         
     def create_ui(self):
-        # Create main container for input fields
-        input_frame = ttk.Frame(self.window)
-        input_frame.pack(fill=tk.X, padx=5, pady=5)
+        """Create and configure all UI elements."""
+        # Main container
+        main_frame = ttk.Frame(self.window)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Input section
+        input_frame = self.create_input_section(main_frame)
+        input_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # Notebook for logs
+        self.create_notebook(main_frame)
+        
+    def create_input_section(self, parent):
+        """Create the input controls section."""
+        input_frame = ttk.LabelFrame(parent, text="Configuration", padding="5")
         
         # URL input
         url_frame = ttk.Frame(input_frame, padding="5")
@@ -36,40 +71,48 @@ class RestApiClient:
         self.token_entry = ttk.Entry(token_frame, width=50)
         self.token_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         
-        # SSL Verification checkbox
+        # SSL Verification
         ssl_frame = ttk.Frame(input_frame, padding="5")
         ssl_frame.pack(fill=tk.X)
         self.verify_ssl = tk.BooleanVar(value=False)
-        ttk.Checkbutton(ssl_frame, text="Verify SSL Certificate", variable=self.verify_ssl).pack(side=tk.LEFT)
+        ttk.Checkbutton(ssl_frame, text="Verify SSL Certificate", 
+                       variable=self.verify_ssl).pack(side=tk.LEFT)
         
-        # Certificate path input
+        # Certificate path
         cert_frame = ttk.Frame(input_frame, padding="5")
         cert_frame.pack(fill=tk.X)
         ttk.Label(cert_frame, text="Certificate Path (optional):").pack(side=tk.LEFT)
         self.cert_entry = ttk.Entry(cert_frame, width=40)
         self.cert_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-        ttk.Button(cert_frame, text="Browse", command=self.browse_cert).pack(side=tk.LEFT)
+        ttk.Button(cert_frame, text="Browse", 
+                  command=self.browse_cert).pack(side=tk.LEFT)
         
         # File selection
         file_frame = ttk.Frame(input_frame, padding="5")
         file_frame.pack(fill=tk.X)
         self.file_label = ttk.Label(file_frame, text="No file selected")
         self.file_label.pack(side=tk.LEFT, padx=5)
-        ttk.Button(file_frame, text="Browse", command=self.browse_file).pack(side=tk.LEFT)
+        ttk.Button(file_frame, text="Browse CSV", 
+                  command=self.browse_file).pack(side=tk.LEFT)
         
-        # Process button
-        ttk.Button(input_frame, text="Process CSV", command=self.process_csv).pack(pady=10)
-        
-        # Progress bar
+        # Process button and progress bar
+        control_frame = ttk.Frame(input_frame, padding="5")
+        control_frame.pack(fill=tk.X)
+        ttk.Button(control_frame, text="Process CSV", 
+                  command=self.process_csv).pack(side=tk.LEFT, padx=5)
         self.progress_var = tk.DoubleVar()
-        self.progress = ttk.Progressbar(input_frame, variable=self.progress_var, maximum=100)
-        self.progress.pack(fill=tk.X, padx=5, pady=5)
+        self.progress = ttk.Progressbar(control_frame, variable=self.progress_var, 
+                                      maximum=100, length=300)
+        self.progress.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
-        # Create notebook for logs, requests, and responses
-        notebook = ttk.Notebook(self.window)
-        notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        return input_frame
         
-        # Log tab
+    def create_notebook(self, parent):
+        """Create the notebook with logging tabs."""
+        notebook = ttk.Notebook(parent)
+        notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # Process Log tab
         log_frame = ttk.Frame(notebook)
         notebook.add(log_frame, text='Process Log')
         self.log_area = scrolledtext.ScrolledText(log_frame, height=20)
@@ -88,22 +131,27 @@ class RestApiClient:
         self.response_area.pack(fill=tk.BOTH, expand=True)
         
     def browse_cert(self):
+        """Open file dialog for certificate selection."""
         filename = filedialog.askopenfilename(
-            filetypes=[("Certificate Files", "*.pem;*.crt;*.cer"), ("All Files", "*.*")]
+            filetypes=[("Certificate Files", "*.pem;*.crt;*.cer"), 
+                      ("All Files", "*.*")]
         )
         if filename:
             self.cert_entry.delete(0, tk.END)
             self.cert_entry.insert(0, filename)
             
     def browse_file(self):
+        """Open file dialog for CSV selection."""
         filename = filedialog.askopenfilename(
-            filetypes=[("CSV Files", "*.csv"), ("All Files", "*.*")]
+            filetypes=[("CSV Files", "*.csv"), 
+                      ("All Files", "*.*")]
         )
         if filename:
             self.file_label.config(text=os.path.basename(filename))
             self.selected_file = filename
             
     def log_message(self, message: str, area_type: str = 'log'):
+        """Log a message to the specified area with timestamp."""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_entry = f"[{timestamp}] {message}\n"
         
@@ -117,7 +165,36 @@ class RestApiClient:
             self.log_area.insert(tk.END, log_entry)
             self.log_area.see(tk.END)
             
+    def format_xml(self, xml_string: str) -> str:
+        """Format XML string with proper indentation while preserving CDATA."""
+        # Extract CDATA content before formatting
+        import re
+        cdata_pattern = r'<!\[CDATA\[(.*?)\]\]>'
+        cdata_matches = re.findall(cdata_pattern, xml_string, re.DOTALL)
+        
+        # Replace CDATA content with placeholder
+        placeholder = "CDATA_PLACEHOLDER_XYZ"
+        xml_with_placeholder = re.sub(cdata_pattern, placeholder, xml_string)
+        
+        try:
+            dom = minidom.parseString(xml_with_placeholder)
+            formatted_xml = dom.toprettyxml(indent="  ")
+            # Remove empty lines
+            formatted_xml = '\n'.join([line for line in formatted_xml.split('\n') 
+                                     if line.strip()])
+            
+            # Restore CDATA content
+            for cdata_content in cdata_matches:
+                formatted_xml = formatted_xml.replace(
+                    placeholder,
+                    f'<![CDATA[{cdata_content}]]>'
+                )
+            return formatted_xml
+        except:
+            return xml_string
+            
     def format_request(self, row_num: int, url: str, headers: dict, payload: str) -> str:
+        """Format request details for display."""
         formatted_headers = json.dumps(headers, indent=2)
         formatted_payload = self.format_xml(payload)
         
@@ -132,12 +209,11 @@ Payload:
 """
             
     def format_response(self, response, row_num: int) -> str:
+        """Format response details for display."""
         try:
-            # Try to parse response as JSON
             content = response.json()
             formatted_content = json.dumps(content, indent=2)
         except json.JSONDecodeError:
-            # If not JSON, use text content
             formatted_content = response.text
             
         return f"""
@@ -150,6 +226,7 @@ Content:
 """
             
     def create_xml_payload(self, row: Dict[str, str]) -> Optional[str]:
+        """Create XML payload from row data."""
         if not row.get('id'):
             return None
             
@@ -166,7 +243,7 @@ Content:
         id_elem = ET.SubElement(job, "{http://www.tidalsoftware.com/client/tesservlet}id")
         id_elem.text = row['id']
         
-        # Add optional elements only if they have values
+        # Add optional elements
         if row.get('agentid'):
             agent_elem = ET.SubElement(job, "{http://www.tidalsoftware.com/client/tesservlet}agentid")
             agent_elem.text = row['agentid']
@@ -181,55 +258,25 @@ Content:
             
         if row.get('parameters'):
             parameters_elem = ET.SubElement(job, "{http://www.tidalsoftware.com/client/tesservlet}parameters")
-            # Handle the parameters value directly without using ElementTree's text handling
+            # Handle parameters value with CDATA and preserve formatting
             parameters_value = row['parameters']
-            # Ensure any carriage returns are preserved
             parameters_value = parameters_value.replace('\r\n', '\n').replace('\r', '\n')
             
             # Convert the Element to string
             xml_str = ET.tostring(root, encoding='unicode', xml_declaration=True)
             
-            # Insert CDATA section with preserved formatting
+            # Insert CDATA section
             cdata_section = f"<![CDATA[{parameters_value}]]>"
-            
-            # Replace the empty parameters tag with one containing the CDATA section
             xml_str = xml_str.replace(
                 '<tes:parameters></tes:parameters>',
                 f'<tes:parameters>{cdata_section}</tes:parameters>'
             )
-            
             return xml_str
             
         return ET.tostring(root, encoding='unicode', xml_declaration=True)
-		
-	def format_xml(self, xml_string: str) -> str:
-        """Format XML string with proper indentation while preserving CDATA content"""
-        # Extract CDATA content before formatting
-        import re
-        cdata_pattern = r'<!\[CDATA\[(.*?)\]\]>'
-        cdata_matches = re.findall(cdata_pattern, xml_string, re.DOTALL)
-        
-        # Replace CDATA content with placeholder
-        placeholder = "CDATA_PLACEHOLDER_XYZ"
-        xml_with_placeholder = re.sub(cdata_pattern, placeholder, xml_string)
-        
-        try:
-            dom = minidom.parseString(xml_with_placeholder)
-            formatted_xml = dom.toprettyxml(indent="  ")
-            # Remove empty lines
-            formatted_xml = '\n'.join([line for line in formatted_xml.split('\n') if line.strip()])
-            
-            # Restore CDATA content
-            for cdata_content in cdata_matches:
-                formatted_xml = formatted_xml.replace(
-                    placeholder,
-                    f'<![CDATA[{cdata_content}]]>'
-                )
-            return formatted_xml
-        except:
-            return xml_string	
         
     def process_csv(self):
+        """Process the CSV file and make API requests."""
         if not hasattr(self, 'selected_file'):
             self.log_message("Error: No file selected")
             return
@@ -252,8 +299,9 @@ Content:
             verify = cert_path if cert_path else True
         else:
             verify = False
-            # Disable SSL warnings if verification is disabled
-            requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
+            requests.packages.urllib3.disable_warnings(
+                requests.packages.urllib3.exceptions.InsecureRequestWarning
+            )
         
         errors = []
         
@@ -269,7 +317,7 @@ Content:
                 total_rows = len(rows)
                 
                 for index, row in enumerate(rows, 1):
-                    # Map CSV columns to payload attributes
+                    # Map CSV columns
                     data = {
                         'id': row.get(csv_reader.fieldnames[0], ''),
                         'agentid': row.get(csv_reader.fieldnames[1], ''),
@@ -278,11 +326,11 @@ Content:
                         'parameters': row.get(csv_reader.fieldnames[4], '')
                     }
                     
-                    # Update progress bar
+                    # Update progress
                     self.progress_var.set((index / total_rows) * 100)
                     self.window.update_idletasks()
                     
-                    # Create XML payload
+                    # Create payload
                     payload = self.create_xml_payload(data)
                     
                     if not payload:
