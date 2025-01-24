@@ -42,7 +42,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='RestApiClient',
+    name='TidalJobManager',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -68,8 +68,7 @@ pyinstaller rest_api_client.spec
 ```
 
 3. Locate Executable:
-- Windows: `dist/RestApiClient.exe`
-- Linux/Mac: `dist/RestApiClient`
+- Windows: `dist/TidalJobManager.exe`
 
 ## Distribution
 - Share the executable from the `dist` folder
